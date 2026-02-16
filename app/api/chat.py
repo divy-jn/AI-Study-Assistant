@@ -6,12 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import sqlite3
+import json
+import uuid
 from datetime import datetime
 
 from app.core.logging_config import get_logger
 from app.workflows.graph import process_user_query
 from .auth import get_current_user
 from app.services.llm_service import get_llm_service, OllamaLLMService
+from fastapi.responses import StreamingResponse
 
 
 logger = get_logger(__name__)
@@ -48,6 +51,11 @@ class ConversationResponse(BaseModel):
     message_count: int
 
 
+class RenameRequest(BaseModel):
+    """Rename conversation request"""
+    title: str
+
+
 # ============================================================================
 # Helper Functions
 # ============================================================================
@@ -59,28 +67,34 @@ def get_db():
     return conn
 
 
-def create_conversation(user_id: int) -> int:
-    """
-    Create a new conversation
-    
-    Args:
-        user_id: User ID
-        
-    Returns:
-        Conversation ID
-    """
+def ensure_title_column():
+    """Add title column to conversations if it doesn't exist"""
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT title FROM conversations LIMIT 1")
+    except sqlite3.OperationalError:
+        cursor.execute("ALTER TABLE conversations ADD COLUMN title TEXT DEFAULT NULL")
+        conn.commit()
+    conn.close()
+
+# Run migration on import
+ensure_title_column()
+
+
+def create_conversation(user_id: int, title: str = "New Chat") -> int:
+    """Create a new conversation with a title"""
     conn = get_db()
     cursor = conn.cursor()
     
-    import uuid
     session_id = str(uuid.uuid4())
     
     cursor.execute(
         """
-        INSERT INTO conversations (user_id, session_id)
-        VALUES (?, ?)
+        INSERT INTO conversations (user_id, session_id, title)
+        VALUES (?, ?, ?)
         """,
-        (user_id, session_id)
+        (user_id, session_id, title)
     )
     
     conn.commit()
@@ -90,6 +104,18 @@ def create_conversation(user_id: int) -> int:
     return conversation_id
 
 
+def update_conversation_title(conversation_id: int, title: str):
+    """Update a conversation's title"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE conversations SET title = ? WHERE id = ?",
+        (title, conversation_id)
+    )
+    conn.commit()
+    conn.close()
+
+
 def save_message(
     conversation_id: int,
     role: str,
@@ -97,20 +123,10 @@ def save_message(
     intent: Optional[str] = None,
     metadata: Optional[Dict] = None
 ):
-    """
-    Save a message to conversation history
-    
-    Args:
-        conversation_id: Conversation ID
-        role: Message role (user/assistant)
-        content: Message content
-        intent: Detected intent
-        metadata: Additional metadata
-    """
+    """Save a message to conversation history"""
     conn = get_db()
     cursor = conn.cursor()
     
-    import json
     metadata_json = json.dumps(metadata) if metadata else None
     
     cursor.execute(
@@ -129,49 +145,26 @@ def save_message(
 # API Endpoints
 # ============================================================================
 
-
-from fastapi.responses import StreamingResponse
-import json
-
 @router.post("/query", response_model=ChatResponse)
 async def process_query(
     request: ChatRequest,
     current_user: dict = Depends(get_current_user),
     llm_service: OllamaLLMService = Depends(get_llm_service)
 ):
-    """
-    Process a user query through the AI workflow
-    
-    Args:
-        request: Chat request with query
-        current_user: Current authenticated user
-        
-    Returns:
-        AI response with answer/evaluation/questions
-    """
+    """Process a user query through the AI workflow"""
     user_id = current_user["id"]
     query = request.query
     
-    logger.info(
-        f"💬 Processing query | "
-        f"User: {user_id} | "
-        f"Query: '{query[:100]}...'"
-    )
+    logger.info(f"💬 Processing query | User: {user_id} | Query: '{query[:100]}...'")
     
     try:
-        # Create conversation if needed
         conversation_id = request.conversation_id
         if not conversation_id:
-            conversation_id = create_conversation(user_id)
+            title = query[:50].strip() + ("..." if len(query) > 50 else "")
+            conversation_id = create_conversation(user_id, title=title)
         
-        # Save user message
-        save_message(
-            conversation_id=conversation_id,
-            role="user",
-            content=query
-        )
+        save_message(conversation_id=conversation_id, role="user", content=query)
         
-        # Process query through LangGraph workflow
         result = await process_user_query(
             user_id=user_id,
             query=query,
@@ -179,12 +172,8 @@ async def process_query(
         )
         
         if not result["success"]:
-            raise HTTPException(
-                status_code=500,
-                detail=result.get("error", "Query processing failed")
-            )
+            raise HTTPException(status_code=500, detail=result.get("error", "Query processing failed"))
         
-        # Build response content
         response_content = ""
         if result.get("response"):
             response_content = result["response"]
@@ -194,7 +183,6 @@ async def process_query(
             eval_result = result["evaluation"]
             response_content = f"Score: {eval_result['obtained_marks']}/{eval_result['total_marks']}\n\n{eval_result.get('feedback', '')}"
         
-        # Save assistant message
         save_message(
             conversation_id=conversation_id,
             role="assistant",
@@ -203,13 +191,6 @@ async def process_query(
             metadata=result.get("metadata", {})
         )
         
-        logger.info(
-            f"✅ Query processed | "
-            f"Intent: {result['intent']} | "
-            f"Time: {result['processing_time']:.2f}s"
-        )
-        
-        # Build response
         return ChatResponse(
             success=True,
             intent=result["intent"],
@@ -225,11 +206,7 @@ async def process_query(
         raise
     except Exception as e:
         logger.error(f"❌ Query processing failed: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process query: {str(e)}"
-        )
-
+        raise HTTPException(status_code=500, detail=f"Failed to process query: {str(e)}")
 
 
 @router.post("/stream")
@@ -238,53 +215,44 @@ async def stream_query(
     current_user: dict = Depends(get_current_user),
     llm_service: OllamaLLMService = Depends(get_llm_service)
 ):
-    """
-    Stream a user query response using Server-Sent Events (SSE) with context
-    """
+    """Stream a user query response using Server-Sent Events (SSE) with context"""
     user_id = current_user["id"]
     query = request.query
     conversation_id = request.conversation_id
     
     logger.info(f"🌊 Streaming query | User: {user_id} | Query: '{query[:50]}...'")
     
-    # Create conversation if needed
+    # Create conversation if needed, title = first message
+    is_new_conversation = False
     if not conversation_id:
-        conversation_id = create_conversation(user_id)
+        title = query[:50].strip() + ("..." if len(query) > 50 else "")
+        conversation_id = create_conversation(user_id, title=title)
+        is_new_conversation = True
     
-    # Save user message first so it's part of history for next time (but we manually add it for this turn)
     save_message(conversation_id=conversation_id, role="user", content=query)
     
     async def event_generator():
         try:
-            # Emit status: Fetching history
             yield f"data: {json.dumps({'type': 'status', 'message': 'Fetching history...'})}\n\n"
 
-            # 1. Fetch History (Last 10 messages)
+            # 1. Fetch History
             conn = get_db()
             cursor = conn.cursor()
             cursor.execute(
-                """
-                SELECT role, content 
-                FROM messages 
-                WHERE conversation_id = ? 
-                ORDER BY id DESC LIMIT 10
-                """,
+                "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 10",
                 (conversation_id,)
             )
-            # Fetch and reverse to get chronological order
             history_rows = cursor.fetchall()[::-1]
             conn.close()
             
             messages = []
             
-            # Emit status: Searching docs
             yield f"data: {json.dumps({'type': 'status', 'message': 'Searching knowledge base...'})}\n\n"
 
-            # 2. Retrieve Documents (Simple RAG)
+            # 2. Retrieve Documents (RAG)
             from app.nodes.document_retriever import DocumentRetriever, Intent
             from app.core.state import create_initial_state
             
-            # Setup simple retrieval state
             state = create_initial_state(user_id=user_id, query=query)
             state["intent"] = Intent.DOUBT_CLARIFICATION
             
@@ -294,13 +262,11 @@ async def stream_query(
             context = state.get("context", "")
             retrieved_docs = state.get("retrieved_documents", [])
             
-            # Send context info
             if retrieved_docs:
                 yield f"data: {json.dumps({'type': 'info', 'message': f'Found {len(retrieved_docs)} relevant notes'})}\n\n"
             else:
                 yield f"data: {json.dumps({'type': 'info', 'message': 'Using general knowledge'})}\n\n"
 
-            # Emit status: Thinking
             yield f"data: {json.dumps({'type': 'status', 'message': 'Thinking...'})}\n\n"
             
             # 3. Build System Prompt & Messages
@@ -309,11 +275,8 @@ async def stream_query(
                 DOUBT_RESOLVER_GENERAL_SYSTEM
             )
             
-            # Decide system prompt based on context availability
             if context:
                 system_prompt_text = DOUBT_RESOLVER_SYSTEM
-                # Add context to the latest user message or as a system instruction?
-                # Usually better to add as context in the last user message
                 final_query = f"Context information is below.\n---------------------\n{context}\n---------------------\nGiven the context information and not prior knowledge, answer the query.\nQuery: {query}"
                 encoded_source = "notes"
             else:
@@ -321,17 +284,15 @@ async def stream_query(
                 final_query = query
                 encoded_source = "general_knowledge"
 
-            # Add System Prompt
             messages.append({"role": "system", "content": system_prompt_text})
             
-            # Add History (excluding the current message we just saved)
+            # Add history (exclude current message)
             if history_rows and history_rows[-1][1] == query:
                 history_rows = history_rows[:-1]
                 
             for row in history_rows:
                 messages.append({"role": row[0], "content": row[1]})
             
-            # Add current modified query
             messages.append({"role": "user", "content": final_query})
             
             # 4. Stream LLM Response
@@ -344,7 +305,7 @@ async def stream_query(
                 full_response += chunk
                 yield f"data: {json.dumps({'type': 'chunk', 'content': chunk})}\n\n"
             
-            # 5. Save completed message
+            # 5. Save assistant message
             save_message(
                 conversation_id=conversation_id,
                 role="assistant",
@@ -352,6 +313,56 @@ async def stream_query(
                 intent="doubt_clarification",
                 metadata={"source": encoded_source, "streamed": True}
             )
+            
+            # 6. Generate follow-up suggestions
+            try:
+                suggestion_prompt = f"""Given this student question and answer, generate 3 brief follow-up questions. Output ONLY a JSON array.
+
+Q: {query[:200]}
+A: {full_response[:300]}
+
+Output:"""
+                
+                suggestion_response = ""
+                async for chunk in llm_service.generate_stream(
+                    prompt=suggestion_prompt,
+                    temperature=0.3,
+                    max_tokens=150
+                ):
+                    suggestion_response += chunk
+                
+                logger.info(f"📝 Suggestion raw: {suggestion_response[:200]}")
+                
+                # Try multiple JSON extraction strategies
+                suggestions = None
+                import re
+                
+                # Strategy 1: Find JSON array directly
+                json_match = re.search(r'\[.*?\]', suggestion_response, re.DOTALL)
+                if json_match:
+                    try:
+                        suggestions = json.loads(json_match.group())
+                    except json.JSONDecodeError:
+                        pass
+                
+                # Strategy 2: Extract quoted strings manually
+                if not suggestions:
+                    quoted = re.findall(r'"([^"]{5,80})"', suggestion_response)
+                    if len(quoted) >= 2:
+                        suggestions = quoted[:3]
+                
+                if suggestions and isinstance(suggestions, list) and len(suggestions) >= 2:
+                    # Filter to only strings
+                    suggestions = [str(s).strip() for s in suggestions if isinstance(s, str) and len(s.strip()) > 5][:3]
+                    if suggestions:
+                        yield f"data: {json.dumps({'type': 'suggestions', 'questions': suggestions})}\n\n"
+                        logger.info(f"✅ Suggestions: {suggestions}")
+                    else:
+                        logger.warning("Suggestions filtered to empty")
+                else:
+                    logger.warning(f"Could not parse suggestions from: {suggestion_response[:100]}")
+            except Exception as e:
+                logger.warning(f"Failed to generate suggestions: {e}")
             
             # Final event
             yield f"data: {json.dumps({'type': 'done', 'conversation_id': conversation_id})}\n\n"
@@ -363,20 +374,56 @@ async def stream_query(
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-
+@router.post("/conversations/{conversation_id}/summarize-title")
+async def summarize_title(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_user),
+    llm_service: OllamaLLMService = Depends(get_llm_service)
+):
+    """Use LLM to generate a better title for a conversation"""
+    user_id = current_user["id"]
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Verify ownership
+    cursor.execute("SELECT * FROM conversations WHERE id = ? AND user_id = ?", (conversation_id, user_id))
+    if not cursor.fetchone():
+        conn.close()
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    # Get first few messages
+    cursor.execute(
+        "SELECT role, content FROM messages WHERE conversation_id = ? ORDER BY id LIMIT 4",
+        (conversation_id,)
+    )
+    msgs = cursor.fetchall()
+    conn.close()
+    
+    if not msgs:
+        return {"title": "New Chat"}
+    
+    convo_text = "\n".join([f"{m[0]}: {m[1][:100]}" for m in msgs])
+    
+    try:
+        prompt = f"Summarize this conversation in 4-6 words as a title. Return ONLY the title, nothing else.\n\n{convo_text}"
+        title = ""
+        async for chunk in llm_service.generate_stream(prompt=prompt, temperature=0.3, max_tokens=20):
+            title += chunk
+        
+        title = title.strip().strip('"').strip("'")[:60]
+        if title:
+            update_conversation_title(conversation_id, title)
+            return {"title": title}
+    except Exception as e:
+        logger.warning(f"Title summarization failed: {e}")
+    
+    return {"title": "Chat"}
 
 
 @router.get("/conversations")
 async def list_conversations(current_user: dict = Depends(get_current_user)):
-    """
-    List user's conversations
-    
-    Args:
-        current_user: Current authenticated user
-        
-    Returns:
-        List of conversations
-    """
+    """List user's conversations with titles"""
     user_id = current_user["id"]
     
     conn = get_db()
@@ -386,6 +433,7 @@ async def list_conversations(current_user: dict = Depends(get_current_user)):
         """
         SELECT 
             c.id,
+            c.title,
             c.started_at,
             c.last_message_at,
             COUNT(m.id) as message_count
@@ -394,7 +442,7 @@ async def list_conversations(current_user: dict = Depends(get_current_user)):
         WHERE c.user_id = ?
         GROUP BY c.id
         ORDER BY c.last_message_at DESC
-        LIMIT 20
+        LIMIT 50
         """,
         (user_id,)
     )
@@ -403,9 +451,10 @@ async def list_conversations(current_user: dict = Depends(get_current_user)):
     for row in cursor.fetchall():
         conversations.append({
             "conversation_id": row[0],
-            "started_at": row[1],
-            "last_message_at": row[2],
-            "message_count": row[3]
+            "title": row[1] or "Untitled Chat",
+            "started_at": row[2],
+            "last_message_at": row[3],
+            "message_count": row[4]
         })
     
     conn.close()
@@ -418,22 +467,12 @@ async def get_conversation(
     conversation_id: int,
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    Get conversation history
-    
-    Args:
-        conversation_id: Conversation ID
-        current_user: Current authenticated user
-        
-    Returns:
-        Conversation messages
-    """
+    """Get conversation history"""
     user_id = current_user["id"]
     
     conn = get_db()
     cursor = conn.cursor()
     
-    # Verify conversation belongs to user
     cursor.execute(
         "SELECT * FROM conversations WHERE id = ? AND user_id = ?",
         (conversation_id, user_id)
@@ -444,7 +483,6 @@ async def get_conversation(
         conn.close()
         raise HTTPException(status_code=404, detail="Conversation not found")
     
-    # Get messages
     cursor.execute(
         """
         SELECT role, content, intent, timestamp
@@ -472,27 +510,44 @@ async def get_conversation(
     }
 
 
-@router.delete("/conversations/{conversation_id}")
-async def delete_conversation(
+@router.patch("/conversations/{conversation_id}")
+async def rename_conversation(
     conversation_id: int,
+    request: RenameRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """
-    Delete a conversation
-    
-    Args:
-        conversation_id: Conversation ID
-        current_user: Current authenticated user
-        
-    Returns:
-        Success message
-    """
+    """Rename a conversation"""
     user_id = current_user["id"]
     
     conn = get_db()
     cursor = conn.cursor()
     
-    # Verify and delete
+    cursor.execute(
+        "UPDATE conversations SET title = ? WHERE id = ? AND user_id = ?",
+        (request.title, conversation_id, user_id)
+    )
+    
+    if cursor.rowcount == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    conn.commit()
+    conn.close()
+    
+    return {"message": "Renamed", "title": request.title}
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a conversation"""
+    user_id = current_user["id"]
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
     cursor.execute(
         "DELETE FROM conversations WHERE id = ? AND user_id = ?",
         (conversation_id, user_id)
@@ -507,10 +562,7 @@ async def delete_conversation(
     
     logger.info(f"🗑️ Conversation deleted | ID: {conversation_id}")
     
-    return {
-        "message": "Conversation deleted successfully",
-        "conversation_id": conversation_id
-    }
+    return {"message": "Conversation deleted successfully", "conversation_id": conversation_id}
 
 
 if __name__ == "__main__":

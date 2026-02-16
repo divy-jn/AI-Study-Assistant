@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Study Assistant</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -29,6 +32,7 @@
             --danger: #ff7675;
             --radius: 16px;
             --radius-sm: 10px;
+            --sidebar-width: 280px;
         }
 
         body {
@@ -194,6 +198,264 @@
         .app-container {
             display: none;
             height: 100vh;
+            flex-direction: row;
+        }
+
+        /* =========== SIDEBAR =========== */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            height: 100vh;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .new-chat-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, var(--accent), #5a4bd1);
+            border: none;
+            border-radius: var(--radius-sm);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px var(--accent-glow);
+        }
+
+        .sidebar-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .sidebar-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+            position: relative;
+        }
+
+        .sidebar-item:hover {
+            background: var(--bg-card-hover);
+            color: var(--text-primary);
+        }
+
+        .sidebar-item.active {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .sidebar-item .title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sidebar-item .delete-chat {
+            opacity: 0;
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 4px;
+            transition: opacity 0.15s;
+        }
+
+        .sidebar-item:hover .delete-chat {
+            opacity: 1;
+        }
+
+        .sidebar-footer {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-footer .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #fff;
+            flex-shrink: 0;
+        }
+
+        .sidebar-footer .user-name {
+            flex: 1;
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .sidebar-footer .logout-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+
+        .sidebar-footer .logout-btn:hover {
+            color: var(--danger);
+            background: rgba(255, 118, 117, 0.1);
+        }
+
+        .app-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        /* =========== MESSAGE ACTIONS =========== */
+        .message {
+            position: relative;
+        }
+
+        .msg-actions {
+            position: absolute;
+            top: -12px;
+            display: none;
+            gap: 4px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .message.user .msg-actions {
+            left: -8px;
+        }
+
+        .message.assistant .msg-actions {
+            right: -8px;
+        }
+
+        .message:hover .msg-actions {
+            display: flex;
+        }
+
+        .msg-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+            transition: all 0.15s;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .msg-action-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-card-hover);
+        }
+
+        .msg-action-btn .tooltip {
+            display: none;
+            position: absolute;
+            top: -28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            color: var(--success);
+        }
+
+        .msg-action-btn .tooltip.show {
+            display: block;
+        }
+
+        /* =========== SUGGESTION CHIPS =========== */
+        .suggestion-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .suggestion-chip {
+            padding: 8px 14px;
+            background: rgba(108, 92, 231, 0.1);
+            border: 1px solid rgba(108, 92, 231, 0.25);
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--accent-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .suggestion-chip:hover {
+            background: rgba(108, 92, 231, 0.2);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+
+        /* =========== UPLOAD BTN IN CHAT INPUT =========== */
+        .chat-upload-btn {
+            width: 40px;
+            height: 48px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s;
+            flex-shrink: 0;
+        }
+
+        .chat-upload-btn:hover {
+            color: var(--accent-light);
         }
 
         /* Top bar */
@@ -523,16 +785,41 @@
             cursor: pointer;
             transition: all 0.2s;
             flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .send-btn:hover {
             transform: scale(1.05);
+            box-shadow: 0 4px 16px var(--accent-glow);
         }
 
         .send-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
             transform: none;
+        }
+
+        .stop-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-sm);
+            background: var(--danger);
+            border: none;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .stop-btn:hover {
+            transform: scale(1.05);
+            background: #e05656;
+            box-shadow: 0 4px 16px rgba(255, 118, 117, 0.4);
         }
 
         /* =========== DOCUMENTS =========== */
@@ -817,601 +1104,916 @@
 
     <!-- ============ MAIN APP ============ -->
     <div class="app-container" id="appScreen">
-        <!-- Top Bar -->
-        <div class="topbar">
-            <div class="logo">🎓 AI Study Assistant</div>
-            <div class="user-info">
-                <span id="userName"></span>
-                <div class="avatar" id="userAvatar"></div>
-                <button class="btn btn-sm btn-outline" onclick="handleLogout()">Logout</button>
+
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <button class="new-chat-btn" onclick="startNewChat()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    New Chat
+                </button>
+            </div>
+            <div class="sidebar-list" id="sidebarList"></div>
+            <div class="sidebar-footer">
+                <div class="avatar" id="sidebarAvatar"></div>
+                <span class="user-name" id="sidebarUserName"></span>
+                <button class="logout-btn" onclick="handleLogout()">Logout</button>
             </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="tabs">
-            <div class="tab active" data-tab="chat" onclick="switchTab('chat')">💬 Chat</div>
-            <div class="tab" data-tab="documents" onclick="switchTab('documents')">📄 Documents</div>
-        </div>
+        <!-- Main Content Area -->
+        <div class="app-main">
+            <!-- Top Bar -->
+            <div class="topbar">
+                <div class="logo">🎓 AI Study Assistant</div>
+                <div class="user-info">
+                    <span id="userName"></span>
+                    <div class="avatar" id="userAvatar"></div>
+                </div>
+            </div>
 
-        <!-- Content -->
-        <div class="main-content">
+            <!-- Tabs -->
+            <div class="tabs">
+                <div class="tab active" data-tab="chat" onclick="switchTab('chat')">💬 Chat</div>
+                <div class="tab" data-tab="documents" onclick="switchTab('documents')">📄 Documents</div>
+            </div>
 
-            <!-- Chat Panel -->
-            <div class="tab-panel active" id="panel-chat">
-                <div class="chat-wrapper">
-                    <div class="chat-messages" id="chatMessages">
-                        <div class="chat-welcome" id="chatWelcome">
-                            <h2>How can I help you study?</h2>
-                            <p>Upload your notes first, then ask questions, get explanations, or generate practice
-                                questions from your material.</p>
-                            <div class="quick-actions">
-                                <div class="quick-action" onclick="setQuery('Explain the key concepts from my notes')">
-                                    📖 Explain concepts</div>
-                                <div class="quick-action"
-                                    onclick="setQuery('Generate 5 practice questions from my notes')">❓ Generate
-                                    questions</div>
-                                <div class="quick-action" onclick="setQuery('What is machine learning?')">🤖 Ask a doubt
+            <!-- Content -->
+            <div class="main-content">
+
+                <!-- Chat Panel -->
+                <div class="tab-panel active" id="panel-chat">
+                    <div class="chat-wrapper">
+                        <div class="chat-messages" id="chatMessages">
+                            <div class="chat-welcome" id="chatWelcome">
+                                <h2>How can I help you study?</h2>
+                                <p>Upload your notes first, then ask questions, get explanations, or generate practice
+                                    questions from your material.</p>
+                                <div class="quick-actions">
+                                    <div class="quick-action"
+                                        onclick="setQuery('Explain the key concepts from my notes')">📖 Explain concepts
+                                    </div>
+                                    <div class="quick-action"
+                                        onclick="setQuery('Generate 5 practice questions from my notes')">❓ Generate
+                                        questions</div>
+                                    <div class="quick-action" onclick="setQuery('What is machine learning?')">🤖 Ask a
+                                        doubt</div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="typing-indicator" id="typingIndicator">
-                        <span></span><span></span><span></span>
-                    </div>
+                        <div class="status-indicator" id="statusIndicator" style="display:none;">
+                            <div class="status-dot"></div>
+                            <span id="statusText">Processing...</span>
+                        </div>
 
-                    <div class="status-indicator" id="statusIndicator" style="display:none;">
-                        <div class="status-dot"></div>
-                        <span id="statusText">Processing...</span>
-                    </div>
-
-                    <div class="chat-input-area">
-                        <div class="chat-input-wrapper">
-                            <textarea id="chatInput"
-                                placeholder="Ask a question, request explanations, or generate practice questions..."
-                                rows="1" onkeydown="handleChatKeydown(event)"></textarea>
-                            <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
-                            <button class="send-btn" id="stopBtn" onclick="stopStreaming()"
-                                style="display:none;background:var(--danger);">■</button>
+                        <div class="chat-input-area">
+                            <div class="chat-input-wrapper">
+                                <button class="chat-upload-btn"
+                                    onclick="document.getElementById('chatFileInput').click()" title="Upload file">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path
+                                            d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48">
+                                        </path>
+                                    </svg>
+                                </button>
+                                <input type="file" id="chatFileInput" hidden accept=".pdf,.docx,.txt"
+                                    onchange="handleChatFileUpload(event)">
+                                <textarea id="chatInput"
+                                    placeholder="Ask a question, request explanations, or generate practice questions..."
+                                    rows="1" onkeydown="handleChatKeydown(event)"></textarea>
+                                <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                    </svg>
+                                </button>
+                                <button class="stop-btn" id="stopBtn" onclick="stopStreaming()">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                        <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Documents Panel -->
-            <div class="tab-panel" id="panel-documents">
-                <div class="docs-panel">
-                    <div class="docs-header">
-                        <h2>📄 Your Documents</h2>
-                        <button class="btn btn-sm btn-primary" onclick="toggleUploadForm()">+ Upload</button>
-                    </div>
+                <!-- Documents Panel -->
+                <div class="tab-panel" id="panel-documents">
+                    <div class="docs-panel">
+                        <div class="docs-header">
+                            <h2>📄 Your Documents</h2>
+                            <button class="btn btn-sm btn-primary" onclick="toggleUploadForm()">+ Upload</button>
+                        </div>
 
-                    <!-- Upload Zone -->
-                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()"
-                        ondragover="event.preventDefault(); this.classList.add('dragover')"
-                        ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
-                        <div class="icon">📤</div>
-                        <p>Drag & drop your files here or <strong>click to browse</strong></p>
-                        <p>Supports PDF, DOCX, TXT (max 50MB)</p>
-                        <input type="file" id="fileInput" hidden accept=".pdf,.docx,.txt"
-                            onchange="handleFileSelect(event)">
-                    </div>
+                        <!-- Upload Zone -->
+                        <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()"
+                            ondragover="event.preventDefault(); this.classList.add('dragover')"
+                            ondragleave="this.classList.remove('dragover')" ondrop="handleDrop(event)">
+                            <div class="icon">📤</div>
+                            <p>Drag & drop your files here or <strong>click to browse</strong></p>
+                            <p>Supports PDF, DOCX, TXT (max 50MB)</p>
+                            <input type="file" id="fileInput" hidden accept=".pdf,.docx,.txt"
+                                onchange="handleFileSelect(event)">
+                        </div>
 
-                    <!-- Upload Form (shown after file selected) -->
-                    <div class="upload-form" id="uploadForm">
-                        <p style="font-size:14px;font-weight:600;margin-bottom:14px" id="selectedFileName">📎 Selected
-                            file</p>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Document Type</label>
-                                <select id="docType">
-                                    <option value="notes">Notes</option>
-                                    <option value="question_paper">Question Paper</option>
-                                    <option value="marking_scheme">Marking Scheme</option>
-                                </select>
+                        <!-- Upload Form (shown after file selected) -->
+                        <div class="upload-form" id="uploadForm">
+                            <p style="font-size:14px;font-weight:600;margin-bottom:14px" id="selectedFileName">📎
+                                Selected
+                                file</p>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Document Type</label>
+                                    <select id="docType">
+                                        <option value="notes">Notes</option>
+                                        <option value="question_paper">Question Paper</option>
+                                        <option value="marking_scheme">Marking Scheme</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Subject</label>
+                                    <input type="text" id="docSubject" placeholder="e.g. Machine Learning">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Subject</label>
-                                <input type="text" id="docSubject" placeholder="e.g. Machine Learning">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Topic</label>
+                                    <input type="text" id="docTopic" placeholder="e.g. Neural Networks">
+                                </div>
+                            </div>
+                            <div style="display:flex;gap:10px">
+                                <button class="btn btn-sm btn-primary" onclick="uploadDocument()" id="uploadBtn">Upload
+                                    &
+                                    Process</button>
+                                <button class="btn btn-sm btn-outline" onclick="cancelUpload()">Cancel</button>
                             </div>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Topic</label>
-                                <input type="text" id="docTopic" placeholder="e.g. Neural Networks">
-                            </div>
-                        </div>
-                        <div style="display:flex;gap:10px">
-                            <button class="btn btn-sm btn-primary" onclick="uploadDocument()" id="uploadBtn">Upload &
-                                Process</button>
-                            <button class="btn btn-sm btn-outline" onclick="cancelUpload()">Cancel</button>
-                        </div>
-                    </div>
 
-                    <!-- Document Grid -->
-                    <div class="doc-grid" id="docGrid">
-                        <div class="empty-state" id="docsEmpty">
-                            <div class="icon">📚</div>
-                            <p>No documents yet. Upload your study materials to get started!</p>
+                        <!-- Document Grid -->
+                        <div class="doc-grid" id="docGrid">
+                            <div class="empty-state" id="docsEmpty">
+                                <div class="icon">📚</div>
+                                <p>No documents yet. Upload your study materials to get started!</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <script>
-        // ==============================
-        // STATE
-        // ==============================
-        const API = '';  // Same origin
-        let token = localStorage.getItem('token');
-        let currentUser = null;
-        let selectedFile = null;
-        let currentConversationId = null;
-        let abortController = null;
+        <script>
+            // ==============================
+            // STATE
+            // ==============================
+            const API = '';
+            let token = localStorage.getItem('token');
+            let currentUser = null;
+            let selectedFile = null;
+            let currentConversationId = null;
+            let abortController = null;
+            let isStreaming = false;
+            let userScrolledUp = false;
 
-        // ==============================
-        // UTILS
-        // ==============================
-        function toast(msg, type = 'success') {
-            const el = document.createElement('div');
-            el.className = `toast ${type}`;
-            el.textContent = msg;
-            document.getElementById('toasts').appendChild(el);
-            setTimeout(() => el.remove(), 4000);
-        }
-
-        async function api(path, options = {}) {
-            const headers = { ...options.headers };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-            if (!(options.body instanceof FormData) && options.body) {
-                headers['Content-Type'] = 'application/json';
+            // ==============================
+            // UTILS
+            // ==============================
+            function toast(msg, type = 'success') {
+                const el = document.createElement('div');
+                el.className = `toast ${type}`;
+                el.textContent = msg;
+                document.getElementById('toasts').appendChild(el);
+                setTimeout(() => el.remove(), 4000);
             }
-            const res = await fetch(API + path, { ...options, headers });
-            if (res.status === 401) { handleLogout(); throw new Error('Session expired'); }
-            return res;
-        }
 
-        // ==============================
-        // AUTH
-        // ==============================
-        function toggleAuth() {
-            const login = document.getElementById('loginForm');
-            const reg = document.getElementById('registerForm');
-            login.style.display = login.style.display === 'none' ? 'block' : 'none';
-            reg.style.display = reg.style.display === 'none' ? 'block' : 'none';
-            document.getElementById('authError').style.display = 'none';
-        }
-
-        function showAuthError(msg) {
-            const el = document.getElementById('authError');
-            el.textContent = msg;
-            el.style.display = 'block';
-        }
-
-        async function handleLogin(e) {
-            e.preventDefault();
-            const btn = document.getElementById('loginBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner"></div>';
-
-            try {
-                const form = new URLSearchParams();
-                form.append('username', document.getElementById('loginUsername').value);
-                form.append('password', document.getElementById('loginPassword').value);
-
-                const res = await fetch(API + '/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: form
-                });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Login failed');
+            async function api(path, options = {}) {
+                const headers = { ...options.headers };
+                if (token) headers['Authorization'] = `Bearer ${token}`;
+                if (!(options.body instanceof FormData) && options.body) {
+                    headers['Content-Type'] = 'application/json';
                 }
-
-                const data = await res.json();
-                token = data.access_token;
-                localStorage.setItem('token', token);
-                await loadUser();
-                showApp();
-                toast('Welcome back!');
-            } catch (err) {
-                showAuthError(err.message);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Sign In';
+                const res = await fetch(API + path, { ...options, headers });
+                if (res.status === 401) { handleLogout(); throw new Error('Session expired'); }
+                return res;
             }
-        }
 
-        async function handleRegister(e) {
-            e.preventDefault();
-            const btn = document.getElementById('regBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner"></div>';
-
-            try {
-                const res = await fetch(API + '/api/auth/register', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        full_name: document.getElementById('regName').value,
-                        username: document.getElementById('regUsername').value,
-                        email: document.getElementById('regEmail').value,
-                        password: document.getElementById('regPassword').value
-                    })
-                });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Registration failed');
-                }
-
-                toast('Account created! Please sign in.');
-                toggleAuth();
-            } catch (err) {
-                showAuthError(err.message);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Create Account';
+            // ==============================
+            // AUTH
+            // ==============================
+            function toggleAuth() {
+                const login = document.getElementById('loginForm');
+                const reg = document.getElementById('registerForm');
+                login.style.display = login.style.display === 'none' ? 'block' : 'none';
+                reg.style.display = reg.style.display === 'none' ? 'block' : 'none';
+                document.getElementById('authError').style.display = 'none';
             }
-        }
 
-        async function loadUser() {
-            const res = await api('/api/auth/me');
-            if (res.ok) {
-                currentUser = await res.json();
-                document.getElementById('userName').textContent = currentUser.full_name || currentUser.username;
-                document.getElementById('userAvatar').textContent = (currentUser.full_name || currentUser.username)[0].toUpperCase();
+            function showAuthError(msg) {
+                const el = document.getElementById('authError');
+                el.textContent = msg;
+                el.style.display = 'block';
             }
-        }
 
-        function handleLogout() {
-            token = null;
-            currentUser = null;
-            localStorage.removeItem('token');
-            document.getElementById('authScreen').style.display = 'flex';
-            document.getElementById('appScreen').style.display = 'none';
-        }
-
-        function showApp() {
-            document.getElementById('authScreen').style.display = 'none';
-            document.getElementById('appScreen').style.display = 'flex';
-            document.getElementById('appScreen').style.flexDirection = 'column';
-            loadDocuments();
-        }
-
-        // ==============================
-        // TABS
-        // ==============================
-        function switchTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-            document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
-            if (tab === 'documents') loadDocuments();
-        }
-
-        // ==============================
-        // CHAT
-        // ==============================
-        function setQuery(text) {
-            document.getElementById('chatInput').value = text;
-            document.getElementById('chatInput').focus();
-        }
-
-        function handleChatKeydown(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
+            async function handleLogin(e) {
                 e.preventDefault();
-                sendMessage();
+                const btn = document.getElementById('loginBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner"></div>';
+                try {
+                    const form = new URLSearchParams();
+                    form.append('username', document.getElementById('loginUsername').value);
+                    form.append('password', document.getElementById('loginPassword').value);
+                    const res = await fetch(API + '/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: form
+                    });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Login failed'); }
+                    const data = await res.json();
+                    token = data.access_token;
+                    localStorage.setItem('token', token);
+                    await loadUser();
+                    showApp();
+                    toast('Welcome back!');
+                } catch (err) {
+                    showAuthError(err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Sign In';
+                }
             }
-        }
 
-        function addMessage(content, role, intent) {
-            const welcome = document.getElementById('chatWelcome');
-            if (welcome) welcome.remove();
-
-            const container = document.getElementById('chatMessages');
-            const div = document.createElement('div');
-            div.className = `message ${role}`;
-
-            let html = '';
-            if (role === 'assistant' && intent) {
-                html += `<div class="intent-badge">${intent.replace(/_/g, ' ')}</div>`;
+            async function handleRegister(e) {
+                e.preventDefault();
+                const btn = document.getElementById('regBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner"></div>';
+                try {
+                    const res = await fetch(API + '/api/auth/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            full_name: document.getElementById('regName').value,
+                            username: document.getElementById('regUsername').value,
+                            email: document.getElementById('regEmail').value,
+                            password: document.getElementById('regPassword').value
+                        })
+                    });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Registration failed'); }
+                    toast('Account created! Please sign in.');
+                    toggleAuth();
+                } catch (err) {
+                    showAuthError(err.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Create Account';
+                }
             }
-            html += `<div class="message-content">${parseMarkdown(content)}</div>`;
-            div.innerHTML = html;
 
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        function parseMarkdown(text) {
-            if (!text) return '';
-            return text
-                .replace(/## (.*)/g, '<h2>$1</h2>')
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/---/g, '<hr>')
-                .replace(/\n/g, '<br>');
-        }
-
-        function stopStreaming() {
-            if (abortController) {
-                abortController.abort();
-                abortController = null;
+            async function loadUser() {
+                const res = await api('/api/auth/me');
+                if (res.ok) {
+                    currentUser = await res.json();
+                    const name = currentUser.full_name || currentUser.username;
+                    const initial = name[0].toUpperCase();
+                    document.getElementById('userName').textContent = name;
+                    document.getElementById('userAvatar').textContent = initial;
+                    document.getElementById('sidebarUserName').textContent = name;
+                    document.getElementById('sidebarAvatar').textContent = initial;
+                }
             }
-        }
 
-        async function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const query = input.value.trim();
-            if (!query) return;
+            function handleLogout() {
+                token = null;
+                currentUser = null;
+                currentConversationId = null;
+                localStorage.removeItem('token');
+                document.getElementById('authScreen').style.display = 'flex';
+                document.getElementById('appScreen').style.display = 'none';
+            }
 
-            input.value = '';
-            input.style.height = 'auto';
+            function showApp() {
+                document.getElementById('authScreen').style.display = 'none';
+                document.getElementById('appScreen').style.display = 'flex';
+                loadDocuments();
+                loadConversations();
+            }
 
-            addMessage(query, 'user');
+            // ==============================
+            // TABS
+            // ==============================
+            function switchTab(tab) {
+                document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+                document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tab}`));
+                if (tab === 'documents') loadDocuments();
+            }
 
-            const statusIndicator = document.getElementById('statusIndicator');
-            const statusText = document.getElementById('statusText');
-            const sendBtn = document.getElementById('sendBtn');
-            const stopBtn = document.getElementById('stopBtn');
+            // ==============================
+            // SIDEBAR — CONVERSATION LIST
+            // ==============================
+            async function loadConversations() {
+                try {
+                    const res = await api('/api/chat/conversations');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    renderSidebar(data.conversations || []);
+                } catch (err) {
+                    console.error('Load conversations error:', err);
+                }
+            }
 
-            // Show status, swap buttons
-            if (statusIndicator) statusIndicator.style.display = 'flex';
-            if (statusText) statusText.textContent = 'Starting...';
-            if (sendBtn) sendBtn.style.display = 'none';
-            if (stopBtn) stopBtn.style.display = 'inline-flex';
+            function renderSidebar(conversations) {
+                const list = document.getElementById('sidebarList');
+                if (!conversations.length) {
+                    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary);font-size:13px;">No conversations yet</div>';
+                    return;
+                }
+                list.innerHTML = conversations.map(c => `
+                <div class="sidebar-item ${c.conversation_id == currentConversationId ? 'active' : ''}"
+                     onclick="loadConversation(${c.conversation_id})" data-id="${c.conversation_id}">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:0.5">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <span class="title">${escapeHtml(c.title || 'Untitled')}</span>
+                    <button class="delete-chat" onclick="event.stopPropagation();deleteConversation(${c.conversation_id})" title="Delete">🗑</button>
+                </div>
+            `).join('');
+            }
 
-            // Create Assistant Message Placeholder
-            const messagesDiv = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message assistant';
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
 
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'message-content';
-            contentDiv.textContent = '';
-            messageDiv.appendChild(contentDiv);
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-
-            try {
-                abortController = new AbortController();
-
-                const res = await fetch(API + '/api/chat/stream', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        query: query,
-                        conversation_id: currentConversationId
-                    }),
-                    signal: abortController.signal
-                });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || 'Query failed');
+            async function loadConversation(convId) {
+                // Summarize title of the old conversation in background
+                if (currentConversationId && currentConversationId !== convId) {
+                    summarizeTitle(currentConversationId);
                 }
 
-                const reader = res.body.getReader();
-                const decoder = new TextDecoder();
-                let accumulatedText = '';
-                let buffer = '';
+                currentConversationId = convId;
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = '';
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
+                // Highlight active in sidebar
+                document.querySelectorAll('.sidebar-item').forEach(el => {
+                    el.classList.toggle('active', el.dataset.id == convId);
+                });
 
-                    const chunk = decoder.decode(value, { stream: true });
-                    buffer += chunk;
-                    const lines = buffer.split('\n\n');
-                    buffer = lines.pop();
+                // Remove welcome screen
+                const welcome = document.getElementById('chatWelcome');
+                if (welcome) welcome.remove();
 
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
+                try {
+                    const res = await api(`/api/chat/conversations/${convId}`);
+                    if (!res.ok) return;
+                    const data = await res.json();
 
-                                switch (data.type) {
-                                    case 'chunk':
-                                        accumulatedText += data.content;
-                                        contentDiv.innerHTML = parseMarkdown(accumulatedText);
-                                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-                                        break;
+                    data.messages.forEach(msg => {
+                        addMessage(msg.content, msg.role, msg.intent);
+                    });
+                } catch (err) {
+                    console.error('Load conversation error:', err);
+                }
+            }
 
-                                    case 'status':
-                                        if (statusText) statusText.textContent = data.message;
-                                        break;
+            function startNewChat() {
+                // Summarize title of old conversation
+                if (currentConversationId) {
+                    summarizeTitle(currentConversationId);
+                }
 
-                                    case 'info':
-                                        if (statusText) statusText.textContent = data.message;
-                                        break;
+                currentConversationId = null;
+                const container = document.getElementById('chatMessages');
+                container.innerHTML = `
+                <div class="chat-welcome" id="chatWelcome">
+                    <h2>How can I help you study?</h2>
+                    <p>Upload your notes first, then ask questions, get explanations, or generate practice questions from your material.</p>
+                    <div class="quick-actions">
+                        <div class="quick-action" onclick="setQuery('Explain the key concepts from my notes')">📖 Explain concepts</div>
+                        <div class="quick-action" onclick="setQuery('Generate 5 practice questions from my notes')">❓ Generate questions</div>
+                        <div class="quick-action" onclick="setQuery('What is machine learning?')">🤖 Ask a doubt</div>
+                    </div>
+                </div>
+            `;
 
-                                    case 'error':
-                                        contentDiv.innerHTML += `<br><span style="color:var(--danger)">Error: ${data.message}</span>`;
-                                        break;
+                // Deselect sidebar
+                document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+            }
 
-                                    case 'done':
-                                        currentConversationId = data.conversation_id;
-                                        break;
-                                }
-                            } catch (e) {
-                                console.error('Error parsing SSE data:', e);
-                            }
-                        }
+            async function deleteConversation(convId) {
+                if (!confirm('Delete this conversation?')) return;
+                try {
+                    const res = await api(`/api/chat/conversations/${convId}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        if (currentConversationId == convId) startNewChat();
+                        loadConversations();
+                        toast('Conversation deleted');
+                    }
+                } catch (err) { toast(err.message, 'error'); }
+            }
+
+            async function summarizeTitle(convId) {
+                try {
+                    await api(`/api/chat/conversations/${convId}/summarize-title`, { method: 'POST' });
+                    loadConversations(); // Refresh sidebar
+                } catch (err) {
+                    console.log('Title summarization skipped:', err);
+                }
+            }
+
+            // ==============================
+            // CHAT
+            // ==============================
+            function setQuery(q) {
+                document.getElementById('chatInput').value = q;
+                document.getElementById('chatInput').focus();
+            }
+
+            function handleChatKeydown(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            }
+
+            function addMessage(content, role, intent) {
+                const welcome = document.getElementById('chatWelcome');
+                if (welcome) welcome.remove();
+
+                const container = document.getElementById('chatMessages');
+                const div = document.createElement('div');
+                div.className = `message ${role}`;
+
+                let actionsHtml = '';
+                if (role === 'user') {
+                    actionsHtml = `
+                    <div class="msg-actions">
+                        <button class="msg-action-btn" onclick="editMessage(this)" title="Edit">✏️</button>
+                        <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy">📋</button>
+                    </div>`;
+                } else {
+                    actionsHtml = `
+                    <div class="msg-actions">
+                        <button class="msg-action-btn" onclick="copyMessage(this)" title="Copy">📋</button>
+                    </div>`;
+                }
+
+                let html = actionsHtml;
+                if (role === 'assistant' && intent) {
+                    html += `<div class="intent-badge">${intent.replace(/_/g, ' ')}</div>`;
+                }
+                html += `<div class="message-content">${parseMarkdown(content)}</div>`;
+                div.innerHTML = html;
+
+                container.appendChild(div);
+                scrollToBottomIfNeeded();
+                return div;
+            }
+
+            function parseMarkdown(text) {
+                if (!text) return '';
+
+                // Protect LaTeX expressions from other replacements
+                let mathBlocks = [];
+                let mathIdx = 0;
+
+                // Display math $$...$$
+                text = text.replace(/\$\$(.*?)\$\$/gs, (_, expr) => {
+                    const id = `%%MATH${mathIdx++}%%`;
+                    mathBlocks.push({ id, expr: expr.trim(), display: true });
+                    return id;
+                });
+
+                // Inline math $...$
+                text = text.replace(/\$([^$\n]+?)\$/g, (_, expr) => {
+                    const id = `%%MATH${mathIdx++}%%`;
+                    mathBlocks.push({ id, expr: expr.trim(), display: false });
+                    return id;
+                });
+
+                // Code blocks ```...```
+                text = text.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+                // Inline code
+                text = text.replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:4px;font-size:13px;">$1</code>');
+
+                // Block quotes > ...
+                text = text.replace(/^> (.*)$/gm, '<blockquote style="border-left:3px solid var(--accent);padding:4px 12px;margin:8px 0;color:var(--text-secondary);">$1</blockquote>');
+
+                // Headings
+                text = text.replace(/^### (.*$)/gm, '<h3 style="margin:12px 0 6px;">$1</h3>');
+                text = text.replace(/^## (.*$)/gm, '<h2 style="margin:14px 0 8px;">$1</h2>');
+                text = text.replace(/^# (.*$)/gm, '<h1 style="margin:16px 0 10px;font-size:1.4em;">$1</h1>');
+
+                // Lists
+                text = text.replace(/^- (.*)$/gm, '<li style="margin-left:16px;list-style:disc;">$1</li>');
+                text = text.replace(/^\d+\. (.*)$/gm, '<li style="margin-left:16px;list-style:decimal;">$1</li>');
+
+                // Bold & italic
+                text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+                // Horizontal rule
+                text = text.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">');
+
+                // Line breaks
+                text = text.replace(/\n/g, '<br>');
+
+                // Restore math expressions
+                for (const block of mathBlocks) {
+                    try {
+                        const rendered = katex.renderToString(block.expr, {
+                            displayMode: block.display,
+                            throwOnError: false
+                        });
+                        text = text.replace(block.id, rendered);
+                    } catch (e) {
+                        text = text.replace(block.id, `<code>${block.expr}</code>`);
                     }
                 }
 
-            } catch (err) {
-                if (err.name !== 'AbortError') {
-                    contentDiv.innerHTML = `<span style="color:var(--danger)">❌ Error: ${err.message}</span>`;
-                    toast(err.message, 'error');
-                }
-            } finally {
-                if (statusIndicator) statusIndicator.style.display = 'none';
-                if (sendBtn) sendBtn.style.display = 'inline-flex';
-                if (stopBtn) stopBtn.style.display = 'none';
-                abortController = null;
+                return text;
             }
-        }
 
-
-        // ==============================
-        // DOCUMENTS
-        // ==============================
-        function handleFileSelect(e) {
-            selectedFile = e.target.files[0];
-            if (selectedFile) showUploadForm();
-        }
-
-        function handleDrop(e) {
-            e.preventDefault();
-            e.target.classList.remove('dragover');
-            selectedFile = e.dataTransfer.files[0];
-            if (selectedFile) showUploadForm();
-        }
-
-        function showUploadForm() {
-            document.getElementById('selectedFileName').textContent = `📎 ${selectedFile.name}`;
-            document.getElementById('uploadForm').style.display = 'block';
-            document.getElementById('uploadZone').style.display = 'none';
-        }
-
-        function toggleUploadForm() {
-            document.getElementById('uploadZone').style.display = 'block';
-            document.getElementById('uploadForm').style.display = 'none';
-        }
-
-        function cancelUpload() {
-            selectedFile = null;
-            document.getElementById('uploadForm').style.display = 'none';
-            document.getElementById('uploadZone').style.display = 'block';
-            document.getElementById('fileInput').value = '';
-        }
-
-        async function uploadDocument() {
-            if (!selectedFile) return;
-
-            const btn = document.getElementById('uploadBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<div class="spinner"></div> Processing...';
-
-            try {
-                const form = new FormData();
-                form.append('file', selectedFile);
-                form.append('document_type', document.getElementById('docType').value);
-                form.append('subject', document.getElementById('docSubject').value || '');
-                form.append('topic', document.getElementById('docTopic').value || '');
-                form.append('visibility', 'private');
-
-                const res = await api('/api/documents/upload', {
-                    method: 'POST',
-                    body: form
+            // ==============================
+            // MESSAGE ACTIONS
+            // ==============================
+            function copyMessage(btn) {
+                const msgDiv = btn.closest('.message');
+                const contentDiv = msgDiv.querySelector('.message-content');
+                const text = contentDiv.innerText || contentDiv.textContent;
+                navigator.clipboard.writeText(text).then(() => {
+                    // Show brief tooltip
+                    const original = btn.innerHTML;
+                    btn.innerHTML = '✅';
+                    setTimeout(() => btn.innerHTML = original, 1500);
                 });
-
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.detail || err.message || 'Upload failed');
-                }
-
-                toast('Document uploaded and processed!');
-                cancelUpload();
-                loadDocuments();
-            } catch (err) {
-                toast(err.message, 'error');
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Upload & Process';
             }
-        }
 
-        async function loadDocuments() {
-            try {
-                const res = await api('/api/documents/list');
-                if (!res.ok) return;
+            function editMessage(btn) {
+                const msgDiv = btn.closest('.message');
+                const contentDiv = msgDiv.querySelector('.message-content');
+                const currentText = contentDiv.innerText || contentDiv.textContent;
 
-                const data = await res.json();
-                const grid = document.getElementById('docGrid');
-                const empty = document.getElementById('docsEmpty');
+                const textarea = document.createElement('textarea');
+                textarea.value = currentText;
+                textarea.style.cssText = 'width:100%;min-height:60px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--accent);border-radius:8px;padding:10px;font-family:inherit;font-size:14px;resize:vertical;';
 
-                if (!data.documents || data.documents.length === 0) {
-                    grid.innerHTML = '';
-                    grid.appendChild(empty);
-                    empty.style.display = 'block';
-                    return;
-                }
+                const actions = document.createElement('div');
+                actions.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+                actions.innerHTML = `
+                <button class="btn btn-sm btn-primary" style="font-size:12px;padding:4px 12px;">Save & Resend</button>
+                <button class="btn btn-sm btn-outline" style="font-size:12px;padding:4px 12px;">Cancel</button>
+            `;
 
-                empty.style.display = 'none';
-                grid.innerHTML = data.documents.map(doc => `
-            <div class="doc-card">
-                <div class="doc-icon">${doc.file_type === 'pdf' ? '📕' : doc.file_type === 'docx' ? '📘' : '📝'}</div>
-                <div class="doc-name" title="${doc.original_filename || doc.filename}">${doc.original_filename || doc.filename}</div>
-                <div class="doc-meta">
-                    ${doc.subject ? doc.subject + ' · ' : ''}${doc.document_type || 'notes'} · ${formatSize(doc.file_size)}
-                </div>
-                <div style="margin-bottom:10px">
-                    <span class="doc-badge ${doc.is_processed ? 'processed' : 'pending'}">
-                        ${doc.is_processed ? '✓ Processed' : '⏳ Pending'}
-                    </span>
-                    ${doc.chunk_count ? `<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">${doc.chunk_count} chunks</span>` : ''}
-                </div>
-                <div class="doc-actions">
-                    <button class="btn btn-sm btn-danger" onclick="deleteDocument(${doc.id})">Delete</button>
-                </div>
-            </div>
-        `).join('');
-            } catch (err) {
-                console.error('Load docs error:', err);
+                const originalContent = contentDiv.innerHTML;
+                contentDiv.innerHTML = '';
+                contentDiv.appendChild(textarea);
+                contentDiv.appendChild(actions);
+                textarea.focus();
+
+                actions.children[0].onclick = () => {
+                    const newText = textarea.value.trim();
+                    if (!newText) return;
+                    contentDiv.innerHTML = parseMarkdown(newText);
+
+                    // Remove all messages after this one and resend
+                    const allMsgs = [...document.getElementById('chatMessages').children];
+                    const idx = allMsgs.indexOf(msgDiv);
+                    for (let i = allMsgs.length - 1; i > idx; i--) {
+                        allMsgs[i].remove();
+                    }
+
+                    document.getElementById('chatInput').value = newText;
+                    sendMessage();
+                };
+
+                actions.children[1].onclick = () => {
+                    contentDiv.innerHTML = originalContent;
+                };
             }
-        }
 
-        function formatSize(bytes) {
-            if (!bytes) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        }
-
-        async function deleteDocument(id) {
-            if (!confirm('Delete this document?')) return;
-            try {
-                const res = await api(`/api/documents/${id}`, { method: 'DELETE' });
-                if (res.ok) {
-                    toast('Document deleted');
-                    loadDocuments();
-                }
-            } catch (err) {
-                toast(err.message, 'error');
+            // ==============================
+            // SMART SCROLL
+            // ==============================
+            function setupScrollDetection() {
+                const container = document.getElementById('chatMessages');
+                container.addEventListener('scroll', () => {
+                    if (isStreaming) {
+                        const threshold = 100;
+                        const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < threshold;
+                        userScrolledUp = !atBottom;
+                    }
+                });
             }
-        }
 
-        // ==============================
-        // AUTO-RESIZE TEXTAREA
-        // ==============================
-        document.getElementById('chatInput').addEventListener('input', function () {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 140) + 'px';
-        });
+            function scrollToBottomIfNeeded() {
+                if (userScrolledUp) return;
+                const container = document.getElementById('chatMessages');
+                container.scrollTop = container.scrollHeight;
+            }
 
-        // ==============================
-        // INIT
-        // ==============================
-        (async function init() {
-            if (token) {
+            // ==============================
+            // STOP STREAMING
+            // ==============================
+            function stopStreaming() {
+                if (abortController) {
+                    abortController.abort();
+                    abortController = null;
+                }
+            }
+
+            // ==============================
+            // SEND MESSAGE
+            // ==============================
+            async function sendMessage() {
+                const input = document.getElementById('chatInput');
+                const query = input.value.trim();
+                if (!query) return;
+
+                input.value = '';
+                input.style.height = 'auto';
+
+                // Remove old suggestion chips
+                document.querySelectorAll('.suggestion-chips').forEach(el => el.remove());
+
+                addMessage(query, 'user');
+
+                const statusIndicator = document.getElementById('statusIndicator');
+                const statusText = document.getElementById('statusText');
+                const sendBtn = document.getElementById('sendBtn');
+                const stopBtn = document.getElementById('stopBtn');
+
+                if (statusIndicator) statusIndicator.style.display = 'flex';
+                if (statusText) statusText.textContent = 'Starting...';
+                if (sendBtn) sendBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+                const messagesDiv = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message assistant';
+
+                // Add copy action to streaming message
+                const actionsHtml = '<div class="msg-actions"><button class="msg-action-btn" onclick="copyMessage(this)" title="Copy">📋</button></div>';
+                messageDiv.innerHTML = actionsHtml;
+
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.textContent = '';
+                messageDiv.appendChild(contentDiv);
+                messagesDiv.appendChild(messageDiv);
+                scrollToBottomIfNeeded();
+
+                isStreaming = true;
+                userScrolledUp = false;
+
                 try {
-                    await loadUser();
-                    showApp();
-                } catch {
-                    handleLogout();
+                    abortController = new AbortController();
+                    const res = await fetch(API + '/api/chat/stream', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            query: query,
+                            conversation_id: currentConversationId
+                        }),
+                        signal: abortController.signal
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json();
+                        throw new Error(err.detail || 'Request failed');
+                    }
+
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+                    let fullText = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop() || '';
+
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            try {
+                                const payload = JSON.parse(line.slice(6));
+
+                                if (payload.type === 'chunk') {
+                                    fullText += payload.content;
+                                    contentDiv.innerHTML = parseMarkdown(fullText);
+                                    scrollToBottomIfNeeded();
+                                } else if (payload.type === 'status') {
+                                    if (statusText) statusText.textContent = payload.message;
+                                } else if (payload.type === 'info') {
+                                    if (statusText) statusText.textContent = payload.message;
+                                } else if (payload.type === 'suggestions') {
+                                    // Render follow-up question chips
+                                    if (payload.questions && payload.questions.length > 0) {
+                                        const chipsDiv = document.createElement('div');
+                                        chipsDiv.className = 'suggestion-chips';
+                                        payload.questions.forEach(q => {
+                                            const chip = document.createElement('button');
+                                            chip.className = 'suggestion-chip';
+                                            chip.textContent = q;
+                                            chip.onclick = () => {
+                                                document.getElementById('chatInput').value = q;
+                                                sendMessage();
+                                            };
+                                            chipsDiv.appendChild(chip);
+                                        });
+                                        messageDiv.appendChild(chipsDiv);
+                                        scrollToBottomIfNeeded();
+                                    }
+                                } else if (payload.type === 'done') {
+                                    if (!currentConversationId && payload.conversation_id) {
+                                        currentConversationId = payload.conversation_id;
+                                    }
+                                    loadConversations();
+                                } else if (payload.type === 'error') {
+                                    contentDiv.innerHTML = `<span style="color:var(--danger)">Error: ${escapeHtml(payload.message)}</span>`;
+                                }
+                            } catch (parseErr) {
+                                // Incomplete JSON, will be handled in next iteration
+                            }
+                        }
+                    }
+
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        contentDiv.innerHTML = `<span style="color:var(--danger)">Error: ${escapeHtml(err.message)}</span>`;
+                    }
+                } finally {
+                    isStreaming = false;
+                    userScrolledUp = false;
+                    if (statusIndicator) statusIndicator.style.display = 'none';
+                    if (sendBtn) sendBtn.style.display = 'inline-flex';
+                    if (stopBtn) stopBtn.style.display = 'none';
+                    abortController = null;
                 }
             }
-        })();
-    </script>
+
+            // ==============================
+            // CHAT FILE UPLOAD
+            // ==============================
+            async function handleChatFileUpload(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                // Switch to documents tab, select file, and show upload form
+                switchTab('documents');
+
+                // Set the file in the documents upload flow
+                selectedFile = file;
+                document.getElementById('selectedFileName').textContent = `📎 ${file.name}`;
+                document.getElementById('uploadForm').style.display = 'block';
+                document.getElementById('uploadZone').style.display = 'none';
+
+                toast(`File "${file.name}" selected — fill in details and upload.`);
+                e.target.value = ''; // Reset
+            }
+
+            // ==============================
+            // DOCUMENTS
+            // ==============================
+            function handleFileSelect(e) {
+                selectedFile = e.target.files[0];
+                if (selectedFile) showUploadForm();
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                e.target.classList.remove('dragover');
+                selectedFile = e.dataTransfer.files[0];
+                if (selectedFile) showUploadForm();
+            }
+
+            function showUploadForm() {
+                document.getElementById('selectedFileName').textContent = `📎 ${selectedFile.name}`;
+                document.getElementById('uploadForm').style.display = 'block';
+                document.getElementById('uploadZone').style.display = 'none';
+            }
+
+            function toggleUploadForm() {
+                document.getElementById('uploadZone').style.display = 'block';
+                document.getElementById('uploadForm').style.display = 'none';
+            }
+
+            function cancelUpload() {
+                selectedFile = null;
+                document.getElementById('uploadForm').style.display = 'none';
+                document.getElementById('uploadZone').style.display = 'block';
+                document.getElementById('fileInput').value = '';
+            }
+
+            async function uploadDocument() {
+                if (!selectedFile) return;
+                const btn = document.getElementById('uploadBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner"></div> Processing...';
+                try {
+                    const form = new FormData();
+                    form.append('file', selectedFile);
+                    form.append('document_type', document.getElementById('docType').value);
+                    form.append('subject', document.getElementById('docSubject').value || '');
+                    form.append('topic', document.getElementById('docTopic').value || '');
+                    form.append('visibility', 'private');
+                    const res = await api('/api/documents/upload', { method: 'POST', body: form });
+                    if (!res.ok) { const err = await res.json(); throw new Error(err.detail || err.message || 'Upload failed'); }
+                    toast('Document uploaded and processed!');
+                    cancelUpload();
+                    loadDocuments();
+                } catch (err) {
+                    toast(err.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = 'Upload & Process';
+                }
+            }
+
+            async function loadDocuments() {
+                try {
+                    const res = await api('/api/documents/list');
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    const grid = document.getElementById('docGrid');
+                    const empty = document.getElementById('docsEmpty');
+                    if (!data.documents || data.documents.length === 0) {
+                        grid.innerHTML = '';
+                        grid.appendChild(empty);
+                        empty.style.display = 'block';
+                        return;
+                    }
+                    empty.style.display = 'none';
+                    grid.innerHTML = data.documents.map(doc => `
+                    <div class="doc-card">
+                        <div class="doc-icon">${doc.file_type === 'pdf' ? '📕' : doc.file_type === 'docx' ? '📘' : '📝'}</div>
+                        <div class="doc-name" title="${doc.original_filename || doc.filename}">${doc.original_filename || doc.filename}</div>
+                        <div class="doc-meta">${doc.subject ? doc.subject + ' · ' : ''}${doc.document_type || 'notes'} · ${formatSize(doc.file_size)}</div>
+                        <div style="margin-bottom:10px">
+                            <span class="doc-badge ${doc.is_processed ? 'processed' : 'pending'}">${doc.is_processed ? '✓ Processed' : '⏳ Pending'}</span>
+                            ${doc.chunk_count ? `<span style="font-size:11px;color:var(--text-secondary);margin-left:8px">${doc.chunk_count} chunks</span>` : ''}
+                        </div>
+                        <div class="doc-actions">
+                            <button class="btn btn-sm btn-danger" onclick="deleteDocument(${doc.id})">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+                } catch (err) { console.error('Load docs error:', err); }
+            }
+
+            function formatSize(bytes) {
+                if (!bytes) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            }
+
+            async function deleteDocument(id) {
+                if (!confirm('Delete this document?')) return;
+                try {
+                    const res = await api(`/api/documents/${id}`, { method: 'DELETE' });
+                    if (res.ok) { toast('Document deleted'); loadDocuments(); }
+                } catch (err) { toast(err.message, 'error'); }
+            }
+
+            // ==============================
+            // AUTO-RESIZE TEXTAREA
+            // ==============================
+            document.getElementById('chatInput').addEventListener('input', function () {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 140) + 'px';
+            });
+
+            // ==============================
+            // INIT
+            // ==============================
+            setupScrollDetection();
+            (async function init() {
+                if (token) {
+                    try {
+                        await loadUser();
+                        showApp();
+                    } catch {
+                        handleLogout();
+                    }
+                }
+            })();
+        </script>
 
 </body>
 

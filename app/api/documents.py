@@ -139,7 +139,7 @@ async def upload_document(
     subject: str = Form(None),
     topic: str = Form(None),
     visibility: str = Form("private"),
-    current_user: UserResponse = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
     doc_processor: DocumentProcessor = Depends(get_document_processor),
     vector_store: VectorStoreService = Depends(get_vector_store)
 ):
@@ -157,7 +157,7 @@ async def upload_document(
     Returns:
         Document information
     """
-    user_id = current_user.id
+    user_id = current_user["id"]
     
     logger.info(
         f"📤 Document upload | "
@@ -165,6 +165,7 @@ async def upload_document(
         f"File: {file.filename} | "
         f"Type: {document_type}"
     )
+
     
     try:
         # Validate file type
@@ -201,18 +202,18 @@ async def upload_document(
             subject=subject,
             topic=topic,
             visibility=visibility,
-            user_id=current_user.id
+            user_id=current_user["id"]
         )
         
         logger.info(f"✅ Document metadata saved | ID: {document_id}")
         
         # Process document
         with LogExecutionTime(logger, f"Document processing: {document_id}"):
-            processed_doc = await doc_processor.process_document(
+            processed_doc = doc_processor.process_file(
                 file_path=str(file_path),
                 document_metadata={
                     "document_id": document_id,
-                    "user_id": current_user.id,
+                    "user_id": current_user["id"],
                     "document_type": document_type,
                     "subject": subject,
                     "topic": topic,
